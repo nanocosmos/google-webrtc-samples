@@ -36,6 +36,8 @@
 
     <audio id="gum-local" controls autoplay></audio>
 
+    <p class="warning">Warning: if you're not using headphones, pressing play will cause feedback.</p>
+
     <p>Render the audio stream from an audio-only <code>getUserMedia()</code> call with an audio element.</p>
 
     <p>The <code>MediaStream</code> object <code><em>stream</em></code> passed to the <code>getUserMedia()</code> callback is in global scope, so you can inspect it from the console.</p>
@@ -44,7 +46,7 @@
 
   </div>
 
-  <script src="../../../js/adapter.js"></script>
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
   <script src="../../../js/common.js"></script>
   <script src="js/main.js"></script>
 

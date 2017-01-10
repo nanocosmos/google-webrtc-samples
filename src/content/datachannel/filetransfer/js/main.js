@@ -5,7 +5,6 @@
  *  that can be found in the LICENSE file in the root of the source
  *  tree.
  */
-
 'use strict';
 
 var localConnection;
@@ -29,7 +28,16 @@ var timestampStart;
 var statsInterval = null;
 var bitrateMax = 0;
 
-fileInput.addEventListener('change', createConnection, false);
+fileInput.addEventListener('change', handleFileInputChange, false);
+
+function handleFileInputChange() {
+  var file = fileInput.files[0];
+  if (!file) {
+    trace('No file chosen');
+  } else {
+    createConnection();
+  }
+}
 
 function createConnection() {
   var servers = null;
@@ -49,7 +57,10 @@ function createConnection() {
   sendChannel.onclose = onSendChannelStateChange;
   localConnection.onicecandidate = iceCallback1;
 
-  localConnection.createOffer(gotDescription1, onCreateSessionDescriptionError);
+  localConnection.createOffer().then(
+    gotDescription1,
+    onCreateSessionDescriptionError
+  );
   // Add remoteConnection to global scope to make it visible
   // from the browser console.
   window.remoteConnection = remoteConnection = new RTCPeerConnection(servers,
@@ -68,8 +79,9 @@ function onCreateSessionDescriptionError(error) {
 
 function sendData() {
   var file = fileInput.files[0];
-  trace('file is ' + [file.name, file.size, file.type,
-      file.lastModifiedDate].join(' '));
+  trace('File is ' + [file.name, file.size, file.type,
+      file.lastModifiedDate
+  ].join(' '));
 
   // Handle 0 size files.
   statusMessage.textContent = '';
@@ -122,8 +134,10 @@ function gotDescription1(desc) {
   localConnection.setLocalDescription(desc);
   trace('Offer from localConnection \n' + desc.sdp);
   remoteConnection.setRemoteDescription(desc);
-  remoteConnection.createAnswer(gotDescription2,
-      onCreateSessionDescriptionError);
+  remoteConnection.createAnswer().then(
+    gotDescription2,
+    onCreateSessionDescriptionError
+  );
 }
 
 function gotDescription2(desc) {
@@ -135,8 +149,12 @@ function gotDescription2(desc) {
 function iceCallback1(event) {
   trace('local ice callback');
   if (event.candidate) {
-    remoteConnection.addIceCandidate(event.candidate,
-        onAddIceCandidateSuccess, onAddIceCandidateError);
+    remoteConnection.addIceCandidate(
+      event.candidate
+    ).then(
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
+    );
     trace('Local ICE candidate: \n' + event.candidate.candidate);
   }
 }
@@ -144,8 +162,12 @@ function iceCallback1(event) {
 function iceCallback2(event) {
   trace('remote ice callback');
   if (event.candidate) {
-    localConnection.addIceCandidate(event.candidate,
-        onAddIceCandidateSuccess, onAddIceCandidateError);
+    localConnection.addIceCandidate(
+      event.candidate
+    ).then(
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
+    );
     trace('Remote ICE candidate: \n ' + event.candidate.candidate);
   }
 }
@@ -237,9 +259,8 @@ function displayStats() {
         bitrate + ' kbits/sec';
   };
 
-  if (remoteConnection &&
-      remoteConnection.iceConnectionState === 'connected') {
-    if (webrtcDetectedBrowser === 'chrome') {
+  if (remoteConnection && remoteConnection.iceConnectionState === 'connected') {
+    if (adapter.browserDetails.browser === 'chrome') {
       // TODO: once https://code.google.com/p/webrtc/issues/detail?id=4321
       // lands those stats should be preferrred over the connection stats.
       remoteConnection.getStats(null, function(stats) {

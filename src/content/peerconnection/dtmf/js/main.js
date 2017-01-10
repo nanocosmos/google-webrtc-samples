@@ -64,8 +64,12 @@ function gotStream(stream) {
   }
   pc1.addStream(localStream);
   trace('Adding Local Stream to peer connection');
-  pc1.createOffer(gotDescription1, onCreateSessionDescriptionError,
-      offerOptions);
+  pc1.createOffer(
+    offerOptions
+  ).then(
+    gotDescription1,
+    onCreateSessionDescriptionError
+  );
 }
 
 function onCreateSessionDescriptionError(error) {
@@ -108,14 +112,13 @@ function gotDescription1(desc) {
   // Since the 'remote' side has no media stream we need
   // to pass in the right constraints in order for it to
   // accept the incoming offer of audio.
-  pc2.createAnswer(gotDescription2, onCreateSessionDescriptionError);
+  pc2.createAnswer().then(
+    gotDescription2,
+    onCreateSessionDescriptionError
+  );
 }
 
 function gotDescription2(desc) {
-  // Setting PCMU as the preferred codec.
-  desc.sdp = desc.sdp.replace(/m=.*\r\n/, 'm=audio 1 RTP/SAVPF 0 126\r\n');
-  // Workaround for issue 1603.
-  desc.sdp = desc.sdp.replace(/.*fmtp.*\r\n/g, '');
   pc2.setLocalDescription(desc);
   trace('Answer from pc2: \n' + desc.sdp);
   pc1.setRemoteDescription(desc);
@@ -150,16 +153,22 @@ function gotRemoteStream(e) {
 
 function iceCallback1(event) {
   if (event.candidate) {
-    pc2.addIceCandidate(new RTCIceCandidate(event.candidate),
-        onAddIceCandidateSuccess, onAddIceCandidateError);
+    pc2.addIceCandidate(event.candidate)
+    .then(
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
+    );
     trace('Local ICE candidate: \n' + event.candidate.candidate);
   }
 }
 
 function iceCallback2(event) {
   if (event.candidate) {
-    pc1.addIceCandidate(new RTCIceCandidate(event.candidate),
-        onAddIceCandidateSuccess, onAddIceCandidateError);
+    pc1.addIceCandidate(event.candidate)
+    .then(
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
+    );
     trace('Remote ICE candidate: \n ' + event.candidate.candidate);
   }
 }

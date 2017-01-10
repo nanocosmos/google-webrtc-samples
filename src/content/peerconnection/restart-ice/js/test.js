@@ -13,7 +13,7 @@
 var test = require('tape');
 
 var webdriver = require('selenium-webdriver');
-var seleniumHelpers = require('../../../../../test/selenium-lib');
+var seleniumHelpers = require('webrtc-utilities').seleniumLib;
 
 /* Firefox TODO once ice restarts are implemented
  * https://bugzilla.mozilla.org/show_bug.cgi?id=906986
@@ -76,7 +76,7 @@ test('PeerConnection restart ICE sample', function(t) {
   })
   .then(function() {
     t.pass('ICE restart triggered');
-    driver.manage().timeouts().setScriptTimeout(10000);
+    driver.manage().timeouts().setScriptTimeout(15000);
     return driver.executeAsyncScript(
         'var callback = arguments[arguments.length - 1];' +
         'pc1.addEventListener(\'iceconnectionstatechange\', function() {' +

@@ -21,6 +21,12 @@ require('../src/content/peerconnection/pc1/js/test');
 // Tests basic functionality of the peerconnection audio demo.
 require('../src/content/peerconnection/audio/js/test');
 
+// Tests basic functionality of the peerconnection dtmf demo.
+// Disabled for Firefox due not supporting DTMF.
+// Disabled due to being flaky on Chrome.
+// TODO(jansson): Fix flakiness
+// require('../src/content/peerconnection/dtmf/js/test');
+
 // Tests basic functionality of the peerconnection multiple demo.
 require('../src/content/peerconnection/multiple/js/test');
 
@@ -48,7 +54,7 @@ require('../src/content/devices/input-output/js/test.js');
 // This is run as a test so it is executed after all tests
 // have completed.
 test('Shutdown', function(t) {
-  var driver = require('./selenium-lib').buildDriver();
+  var driver = require('webrtc-utilities').seleniumLib.buildDriver();
   driver.close()
   .then(function() {
     driver.quit().then(function() {

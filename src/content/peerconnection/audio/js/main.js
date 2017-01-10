@@ -46,8 +46,12 @@ function gotStream(stream) {
   pc1.addStream(localStream);
   trace('Adding Local Stream to peer connection');
 
-  pc1.createOffer(gotDescription1, onCreateSessionDescriptionError,
-      offerOptions);
+  pc1.createOffer(
+    offerOptions
+  ).then(
+    gotDescription1,
+    onCreateSessionDescriptionError
+  );
 
   bitrateSeries = new TimelineDataSeries();
   bitrateGraph = new TimelineGraphView('bitrateGraph', 'bitrateCanvas');
@@ -89,25 +93,37 @@ function call() {
 }
 
 function gotDescription1(desc) {
-  desc.sdp = forceChosenAudioCodec(desc.sdp);
   trace('Offer from pc1 \n' + desc.sdp);
-  pc1.setLocalDescription(desc, function() {
-    pc2.setRemoteDescription(desc, function() {
-      // Since the 'remote' side has no media stream we need
-      // to pass in the right constraints in order for it to
-      // accept the incoming offer of audio.
-      pc2.createAnswer(gotDescription2, onCreateSessionDescriptionError);
-    }, onSetSessionDescriptionError);
-  }, onSetSessionDescriptionError);
+  pc1.setLocalDescription(desc).then(
+    function() {
+      desc.sdp = forceChosenAudioCodec(desc.sdp);
+      pc2.setRemoteDescription(desc).then(
+        function() {
+          pc2.createAnswer().then(
+            gotDescription2,
+            onCreateSessionDescriptionError
+          );
+        },
+        onSetSessionDescriptionError
+      );
+    },
+    onSetSessionDescriptionError
+  );
 }
 
 function gotDescription2(desc) {
-  desc.sdp = forceChosenAudioCodec(desc.sdp);
-  pc2.setLocalDescription(desc, function() {
-    trace('Answer from pc2 \n' + desc.sdp);
-    pc1.setRemoteDescription(desc, function() {
-    }, onSetSessionDescriptionError);
-  }, onSetSessionDescriptionError);
+  trace('Answer from pc2 \n' + desc.sdp);
+  pc2.setLocalDescription(desc).then(
+    function() {
+      desc.sdp = forceChosenAudioCodec(desc.sdp);
+      pc1.setRemoteDescription(desc).then(
+        function() {
+        },
+        onSetSessionDescriptionError
+      );
+    },
+    onSetSessionDescriptionError
+  );
 }
 
 function hangup() {
@@ -131,16 +147,22 @@ function gotRemoteStream(e) {
 
 function iceCallback1(event) {
   if (event.candidate) {
-    pc2.addIceCandidate(new RTCIceCandidate(event.candidate),
-        onAddIceCandidateSuccess, onAddIceCandidateError);
+    pc2.addIceCandidate(event.candidate)
+    .then(
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
+    );
     trace('Local ICE candidate: \n' + event.candidate.candidate);
   }
 }
 
 function iceCallback2(event) {
   if (event.candidate) {
-    pc1.addIceCandidate(new RTCIceCandidate(event.candidate),
-        onAddIceCandidateSuccess, onAddIceCandidateError);
+    pc1.addIceCandidate(event.candidate)
+    .then(
+      onAddIceCandidateSuccess,
+      onAddIceCandidateError
+    );
     trace('Remote ICE candidate: \n ' + event.candidate.candidate);
   }
 }
@@ -247,8 +269,7 @@ window.setInterval(function() {
     return;
   }
   window.pc1.getStats(null).then(function(res) {
-    Object.keys(res).forEach(function(key) {
-      var report = res[key];
+    res.forEach(function(report) {
       var bytes;
       var packets;
       var now = report.timestamp;
@@ -257,10 +278,10 @@ window.setInterval(function() {
           (report.type === 'ssrc' && report.bytesSent)) {
         bytes = report.bytesSent;
         packets = report.packetsSent;
-        if (lastResult && lastResult[report.id]) {
+        if (lastResult && lastResult.get(report.id)) {
           // calculate bitrate
-          var bitrate = 8 * (bytes - lastResult[report.id].bytesSent) /
-              (now - lastResult[report.id].timestamp);
+          var bitrate = 8 * (bytes - lastResult.get(report.id).bytesSent) /
+              (now - lastResult.get(report.id).timestamp);
 
           // append to chart
           bitrateSeries.addPoint(now, bitrate);
@@ -269,7 +290,7 @@ window.setInterval(function() {
 
           // calculate number of packets and append to chart
           packetSeries.addPoint(now, packets -
-              lastResult[report.id].packetsSent);
+              lastResult.get(report.id).packetsSent);
           packetGraph.setDataSeries([packetSeries]);
           packetGraph.updateEndDate();
         }

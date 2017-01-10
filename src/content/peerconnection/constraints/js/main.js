@@ -20,11 +20,12 @@ var minWidthInput = document.querySelector('div#minWidth input');
 var maxWidthInput = document.querySelector('div#maxWidth input');
 var minHeightInput = document.querySelector('div#minHeight input');
 var maxHeightInput = document.querySelector('div#maxHeight input');
-var framerateInput = document.querySelector('div#framerate input');
+var minFramerateInput = document.querySelector('div#minFramerate input');
+var maxFramerateInput = document.querySelector('div#maxFramerate input');
 
 minWidthInput.onchange = maxWidthInput.onchange =
     minHeightInput.onchange = maxHeightInput.onchange =
-    framerateInput.onchange = displayRangeValue;
+    minFramerateInput.onchange = maxFramerateInput.onchange = displayRangeValue;
 
 var getUserMediaConstraintsDiv =
     document.querySelector('div#getUserMediaConstraints');
@@ -115,10 +116,15 @@ function getUserMediaConstraints() {
     constraints.video.height = constraints.video.height || {};
     constraints.video.height.max = maxHeightInput.value;
   }
-  if (framerateInput.value !== '0') {
+  if (minFramerateInput.value !== '0') {
     constraints.video.frameRate = {};
-    constraints.video.frameRate.min = framerateInput.value;
+    constraints.video.frameRate.min = minFramerateInput.value;
   }
+  if (maxFramerateInput.value !== '0') {
+    constraints.video.frameRate = constraints.video.frameRate || {};
+    constraints.video.frameRate.max = maxFramerateInput.value;
+  }
+
   return constraints;
 }
 
@@ -148,36 +154,47 @@ function createPeerConnection() {
   localPeerConnection.onicecandidate = function(e) {
     console.log('Candidate localPeerConnection');
     if (e.candidate) {
-      remotePeerConnection.addIceCandidate(new RTCIceCandidate(e.candidate),
-          onAddIceCandidateSuccess, onAddIceCandidateError);
+      remotePeerConnection.addIceCandidate(e.candidate)
+      .then(
+        onAddIceCandidateSuccess,
+        onAddIceCandidateError
+      );
     }
   };
   remotePeerConnection.onicecandidate = function(e) {
     console.log('Candidate remotePeerConnection');
     if (e.candidate) {
-      var newCandidate = new RTCIceCandidate(e.candidate);
-      localPeerConnection.addIceCandidate(newCandidate,
-          onAddIceCandidateSuccess, onAddIceCandidateError);
+      localPeerConnection.addIceCandidate(e.candidate)
+      .then(
+        onAddIceCandidateSuccess,
+        onAddIceCandidateError
+      );
     }
   };
   remotePeerConnection.onaddstream = function(e) {
     console.log('remotePeerConnection got stream');
     remoteVideo.srcObject = e.stream;
   };
-  localPeerConnection.createOffer(function(desc) {
-    console.log('localPeerConnection offering');
-    localPeerConnection.setLocalDescription(desc);
-    remotePeerConnection.setRemoteDescription(desc);
-    remotePeerConnection.createAnswer(function(desc2) {
-      console.log('remotePeerConnection answering');
-      remotePeerConnection.setLocalDescription(desc2);
-      localPeerConnection.setRemoteDescription(desc2);
-    }, function(err) {
+  localPeerConnection.createOffer().then(
+    function(desc) {
+      console.log('localPeerConnection offering');
+      localPeerConnection.setLocalDescription(desc);
+      remotePeerConnection.setRemoteDescription(desc);
+      remotePeerConnection.createAnswer().then(
+        function(desc2) {
+          console.log('remotePeerConnection answering');
+          remotePeerConnection.setLocalDescription(desc2);
+          localPeerConnection.setRemoteDescription(desc2);
+        },
+        function(err) {
+          console.log(err);
+        }
+      );
+    },
+    function(err) {
       console.log(err);
-    });
-  }, function(err) {
-    console.log(err);
-  });
+    }
+  );
 }
 
 function onAddIceCandidateSuccess() {
@@ -191,12 +208,12 @@ function onAddIceCandidateError(error) {
 // Display statistics
 setInterval(function() {
   if (remotePeerConnection && remotePeerConnection.getRemoteStreams()[0]) {
-    remotePeerConnection.getStats(null, function(results) {
+    remotePeerConnection.getStats(null)
+    .then(function(results) {
       var statsString = dumpStats(results);
       receiverStatsDiv.innerHTML = '<h2>Receiver stats</h2>' + statsString;
       // calculate video bitrate
-      Object.keys(results).forEach(function(result) {
-        var report = results[result];
+      results.forEach(function(report) {
         var now = report.timestamp;
 
         var bitrate;
@@ -226,8 +243,7 @@ setInterval(function() {
       var remoteCandidate = null;
 
       // search for the candidate pair
-      Object.keys(results).forEach(function(result) {
-        var report = results[result];
+      results.forEach(function(report) {
         if (report.type === 'candidatepair' && report.selected ||
             report.type === 'googCandidatePair' &&
             report.googActiveConnection === 'true') {
@@ -235,13 +251,7 @@ setInterval(function() {
         }
       });
       if (activeCandidatePair && activeCandidatePair.remoteCandidateId) {
-        Object.keys(results).forEach(function(result) {
-          var report = results[result];
-          if (report.type === 'remotecandidate' &&
-              report.id === activeCandidatePair.remoteCandidateId) {
-            remoteCandidate = report;
-          }
-        });
+        remoteCandidate = results[activeCandidatePair.remoteCandidateId];
       }
       if (remoteCandidate && remoteCandidate.ipAddress &&
           remoteCandidate.portNumber) {
@@ -252,7 +262,8 @@ setInterval(function() {
     }, function(err) {
       console.log(err);
     });
-    localPeerConnection.getStats(null, function(results) {
+    localPeerConnection.getStats(null)
+    .then(function(results) {
       var statsString = dumpStats(results);
       senderStatsDiv.innerHTML = '<h2>Sender stats</h2>' + statsString;
     }, function(err) {
@@ -276,15 +287,14 @@ setInterval(function() {
 // might be named toString?
 function dumpStats(results) {
   var statsString = '';
-  Object.keys(results).forEach(function(key, index) {
-    var res = results[key];
-    statsString += '<h3>Report ';
-    statsString += index;
+  results.forEach(function(res) {
+    statsString += '<h3>Report type=';
+    statsString += res.type;
     statsString += '</h3>\n';
+    statsString += 'id ' + res.id + '<br>\n';
     statsString += 'time ' + res.timestamp + '<br>\n';
-    statsString += 'type ' + res.type + '<br>\n';
     Object.keys(res).forEach(function(k) {
-      if (k !== 'timestamp' && k !== 'type') {
+      if (k !== 'timestamp' && k !== 'type' && k !== 'id') {
         statsString += k + ': ' + res[k] + '<br>\n';
       }
     });

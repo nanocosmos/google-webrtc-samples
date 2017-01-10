@@ -69,8 +69,12 @@
             <label>Max height <span>480</span>px:</label>
             <input type="range" min="0" max="1080" value="480">
           </div>
-          <div id="framerate">
-            <label>Frame rate <span>0</span>fps:</label>
+          <div id="minFramerate">
+            <label>Min frameRate <span>0</span>fps:</label>
+            <input type="range" min="0" max="60" value="0">
+          </div>
+          <div id="maxFramerate">
+            <label>Max frameRate <span>0</span>fps:</label>
             <input type="range" min="0" max="60" value="0">
           </div>
         </div>
@@ -101,7 +105,7 @@
 
   </div>
 
-  <script src="../../../js/adapter.js"></script>
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
   <script src="../../../js/common.js"></script>
   <script src="js/main.js"></script>
   <script src="../../../js/lib/ga.js"></script>
