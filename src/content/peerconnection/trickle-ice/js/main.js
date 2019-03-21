@@ -8,65 +8,111 @@
 
 'use strict';
 
-var addButton = document.querySelector('button#add');
-var candidateTBody = document.querySelector('tbody#candidatesBody');
-var gatherButton = document.querySelector('button#gather');
-var passwordInput = document.querySelector('input#password');
-var removeButton = document.querySelector('button#remove');
-var servers = document.querySelector('select#servers');
-var urlInput = document.querySelector('input#url');
-var usernameInput = document.querySelector('input#username');
-var ipv6Check = document.querySelector('input#ipv6');
-var rtcpMuxCheck = document.querySelector('input#unmux');
+const addButton = document.querySelector('button#add');
+const candidateTBody = document.querySelector('tbody#candidatesBody');
+const gatherButton = document.querySelector('button#gather');
+const passwordInput = document.querySelector('input#password');
+const removeButton = document.querySelector('button#remove');
+const resetButton = document.querySelector('button#reset');
+const servers = document.querySelector('select#servers');
+const urlInput = document.querySelector('input#url');
+const usernameInput = document.querySelector('input#username');
+const iceCandidatePoolInput = document.querySelector('input#iceCandidatePool');
 
 addButton.onclick = addServer;
 gatherButton.onclick = start;
 removeButton.onclick = removeServer;
+resetButton.onclick = (e) => {
+  window.localStorage.clear();
+  document.querySelectorAll('select#servers option').forEach(option => option.remove());
+  const serversSelect = document.querySelector('select#servers');
+  setDefaultServer(serversSelect);
+};
 
-var begin;
-var pc;
-var candidates;
+iceCandidatePoolInput.onchange = function(e) {
+  const span = e.target.parentElement.querySelector('span');
+  span.textContent = e.target.value;
+};
+
+let begin;
+let pc;
+let candidates;
+
+const allServersKey = 'servers';
+
+function setDefaultServer(serversSelect) {
+  const o = document.createElement('option');
+  o.value = '{"urls":["stun:stun.l.google.com:19302"]}';
+  o.text = 'stun:stun.l.google.com:19302';
+  serversSelect.add(o);
+}
+
+function writeServersToLocalStorage() {
+  const serversSelect = document.querySelector('select#servers');
+  const allServers = JSON.stringify(Object.values(serversSelect.options).map(o => JSON.parse(o.value)));
+  window.localStorage.setItem(allServersKey, allServers);
+}
+
+function readServersFromLocalStorage() {
+  document.querySelectorAll('select#servers option').forEach(option => option.remove());
+  const serversSelect = document.querySelector('select#servers');
+  const storedServers = window.localStorage.getItem(allServersKey);
+
+  if (storedServers === null || storedServers === '') {
+    setDefaultServer(serversSelect);
+  } else {
+    JSON.parse(storedServers).forEach((server, key) => {
+      const o = document.createElement('option');
+      o.value = JSON.stringify(server);
+      o.text = server.urls[0];
+      o.ondblclick = selectServer;
+      serversSelect.add(o);
+    });
+  }
+}
 
 function selectServer(event) {
-  var option = event.target;
-  var value = JSON.parse(option.value);
+  const option = event.target;
+  const value = JSON.parse(option.value);
   urlInput.value = value.urls[0];
   usernameInput.value = value.username || '';
   passwordInput.value = value.credential || '';
 }
 
 function addServer() {
-  var scheme = urlInput.value.split(':')[0];
+  const scheme = urlInput.value.split(':')[0];
   if (scheme !== 'stun' && scheme !== 'turn' && scheme !== 'turns') {
-    alert('URI scheme ' + scheme + ' is not valid');
+    alert(`URI scheme ${scheme} is not valid`);
     return;
   }
 
   // Store the ICE server as a stringified JSON object in option.value.
-  var option = document.createElement('option');
-  var iceServer = {
+  const option = document.createElement('option');
+  const iceServer = {
     urls: [urlInput.value],
     username: usernameInput.value,
     credential: passwordInput.value
   };
   option.value = JSON.stringify(iceServer);
-  option.text = urlInput.value + ' ';
-  var username = usernameInput.value;
-  var password = passwordInput.value;
+  option.text = `${urlInput.value} `;
+  const username = usernameInput.value;
+  const password = passwordInput.value;
   if (username || password) {
-    option.text += (' [' + username + ':' + password + ']');
+    option.text += (` [${username}:${password}]`);
   }
   option.ondblclick = selectServer;
   servers.add(option);
   urlInput.value = usernameInput.value = passwordInput.value = '';
+  writeServersToLocalStorage();
 }
 
 function removeServer() {
-  for (var i = servers.options.length - 1; i >= 0; --i) {
+  for (let i = servers.options.length - 1; i >= 0; --i) {
     if (servers.options[i].selected) {
       servers.remove(i);
     }
   }
+  writeServersToLocalStorage();
 }
 
 function start() {
@@ -78,13 +124,13 @@ function start() {
   gatherButton.disabled = true;
 
   // Read the values from the input boxes.
-  var iceServers = [];
-  for (var i = 0; i < servers.length; ++i) {
+  const iceServers = [];
+  for (let i = 0; i < servers.length; ++i) {
     iceServers.push(JSON.parse(servers[i].value));
   }
-  var transports = document.getElementsByName('transports');
-  var iceTransports;
-  for (i = 0; i < transports.length; ++i) {
+  const transports = document.getElementsByName('transports');
+  let iceTransports;
+  for (let i = 0; i < transports.length; ++i) {
     if (transports[i].checked) {
       iceTransports = transports[i].value;
       break;
@@ -92,20 +138,20 @@ function start() {
   }
 
   // Create a PeerConnection with no streams, but force a m=audio line.
-  // This will gather candidates for either 1 or 2 ICE components, depending
-  // on whether the un-muxed RTCP checkbox is checked.
-  var config = {'iceServers': iceServers, iceTransportPolicy: iceTransports,
-      rtcpMuxPolicy: rtcpMuxCheck.checked ? 'negotiate' : 'require'};
-  var pcConstraints = {};
-  var offerOptions = {offerToReceiveAudio: 1};
+  const config = {
+    iceServers: iceServers,
+    iceTransportPolicy: iceTransports,
+    iceCandidatePoolSize: iceCandidatePoolInput.value
+  };
+
+  const offerOptions = {offerToReceiveAudio: 1};
   // Whether we gather IPv6 candidates.
-  pcConstraints.optional = [{'googIPv6': ipv6Check.checked}];
   // Whether we only gather a single set of candidates for RTP and RTCP.
 
-  trace('Creating new PeerConnection with config=' + JSON.stringify(config) +
-        ', constraints=' + JSON.stringify(pcConstraints));
-  pc = new RTCPeerConnection(config, pcConstraints);
+  console.log(`Creating new PeerConnection with config=${JSON.stringify(config)}`);
+  pc = new RTCPeerConnection(config);
   pc.onicecandidate = iceCallback;
+  pc.onicegatheringstatechange = gatheringStateChange;
   pc.createOffer(
     offerOptions
   ).then(
@@ -126,17 +172,18 @@ function noDescription(error) {
 
 // Parse a candidate:foo string into an object, for easier use by other methods.
 function parseCandidate(text) {
-  var candidateStr = 'candidate:';
-  var pos = text.indexOf(candidateStr) + candidateStr.length;
-  var fields = text.substr(pos).split(' ');
+  const candidateStr = 'candidate:';
+  const pos = text.indexOf(candidateStr) + candidateStr.length;
+  let [foundation, component, protocol, priority, address, port, , type] =
+    text.substr(pos).split(' ');
   return {
-    'component': fields[1],
-    'type': fields[7],
-    'foundation': fields[0],
-    'protocol': fields[2],
-    'address': fields[4],
-    'port': fields[5],
-    'priority': fields[3]
+    'component': component,
+    'type': type,
+    'foundation': foundation,
+    'protocol': protocol,
+    'address': address,
+    'port': port,
+    'priority': priority
   };
 }
 
@@ -144,17 +191,15 @@ function parseCandidate(text) {
 // type preference, local preference, and (256 - component ID).
 // ex: 126 | 32252 | 255 (126 is host preference, 255 is component ID 1)
 function formatPriority(priority) {
-  var s = '';
-  s += (priority >> 24);
-  s += ' | ';
-  s += (priority >> 8) & 0xFFFF;
-  s += ' | ';
-  s += priority & 0xFF;
-  return s;
+  return [
+    priority >> 24,
+    (priority >> 8) & 0xFFFF,
+    priority & 0xFF
+  ].join(' | ');
 }
 
 function appendCell(row, val, span) {
-  var cell = document.createElement('td');
+  const cell = document.createElement('td');
   cell.textContent = val;
   if (span) {
     cell.setAttribute('colspan', span);
@@ -165,15 +210,15 @@ function appendCell(row, val, span) {
 // Try to determine authentication failures and unreachable TURN
 // servers by using heuristics on the candidate types gathered.
 function getFinalResult() {
-  var result = 'Done';
+  let result = 'Done';
 
   // if more than one server is used, it can not be determined
   // which server failed.
   if (servers.length === 1) {
-    var server = JSON.parse(servers[0].value);
+    const server = JSON.parse(servers[0].value);
 
     // get the candidates types (host, srflx, relay)
-    var types = candidates.map(function(cand) {
+    const types = candidates.map(function(cand) {
       return cand.type;
     });
 
@@ -187,7 +232,7 @@ function getFinalResult() {
     // This only works for TURN/UDP since we do not get
     // srflx candidates from TURN/TCP.
     if (server.urls[0].indexOf('turn:') === 0 &&
-        server.urls[0].indexOf('?transport=tcp') === -1) {
+      server.urls[0].indexOf('?transport=tcp') === -1) {
       if (types.indexOf('relay') === -1) {
         if (types.indexOf('srflx') > -1) {
           // a binding response but no relay candidate suggests auth failure.
@@ -203,11 +248,11 @@ function getFinalResult() {
 }
 
 function iceCallback(event) {
-  var elapsed = ((window.performance.now() - begin) / 1000).toFixed(3);
-  var row = document.createElement('tr');
+  const elapsed = ((window.performance.now() - begin) / 1000).toFixed(3);
+  const row = document.createElement('tr');
   appendCell(row, elapsed);
   if (event.candidate) {
-    var c = parseCandidate(event.candidate.candidate);
+    const c = parseCandidate(event.candidate.candidate);
     appendCell(row, c.component);
     appendCell(row, c.type);
     appendCell(row, c.foundation);
@@ -216,7 +261,8 @@ function iceCallback(event) {
     appendCell(row, c.port);
     appendCell(row, formatPriority(c.priority));
     candidates.push(c);
-  } else {
+  } else if (!('onicegatheringstatechange' in RTCPeerConnection.prototype)) {
+    // should not be done if its done in the icegatheringstatechange callback.
     appendCell(row, getFinalResult(), 7);
     pc.close();
     pc = null;
@@ -224,3 +270,30 @@ function iceCallback(event) {
   }
   candidateTBody.appendChild(row);
 }
+
+function gatheringStateChange() {
+  if (pc.iceGatheringState !== 'complete') {
+    return;
+  }
+  const elapsed = ((window.performance.now() - begin) / 1000).toFixed(3);
+  const row = document.createElement('tr');
+  appendCell(row, elapsed);
+  appendCell(row, getFinalResult(), 7);
+  pc.close();
+  pc = null;
+  gatherButton.disabled = false;
+  candidateTBody.appendChild(row);
+}
+
+readServersFromLocalStorage();
+
+// check if we have getUserMedia permissions.
+navigator.mediaDevices
+  .enumerateDevices()
+  .then(function(devices) {
+    devices.forEach(function(device) {
+      if (device.label !== '') {
+        document.getElementById('getUserMediaPermissions').style.display = 'block';
+      }
+    });
+  });

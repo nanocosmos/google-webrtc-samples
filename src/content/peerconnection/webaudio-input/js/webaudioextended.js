@@ -20,7 +20,7 @@ function WebAudioExtended() {
 WebAudioExtended.prototype.start = function() {
   this.filter = this.context.createBiquadFilter();
   this.filter.type = 'highpass';
-  this.filter.frequency.value = 1500;
+  this.filter.frequency.setValueAtTime(1500, this.context.currentTime + 1);
 };
 
 WebAudioExtended.prototype.applyFilter = function(stream) {
@@ -48,7 +48,7 @@ WebAudioExtended.prototype.stop = function() {
 };
 
 WebAudioExtended.prototype.addEffect = function() {
-  var effect = this.context.createBufferSource();
+  let effect = this.context.createBufferSource();
   effect.buffer = this.soundBuffer;
   if (this.peer) {
     effect.connect(this.peer);
